@@ -6,7 +6,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:system_tray/system_tray.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:vnt_app/src/rust/frb_generated.dart';
 import 'package:vnt_app/src/rust/api/vnt_api.dart';
 import 'package:vnt_app/theme/app_theme.dart';
@@ -19,7 +18,6 @@ import 'package:vnt_app/utils/log_utils.dart';
 import 'package:vnt_app/network_config.dart';
 import 'package:vnt_app/system_tray_manager.dart';
 import 'package:vnt_app/config_manager.dart';
-import 'package:vnt_app/window_manager.dart' as app_window_manager;
 
 final SystemTray systemTray = SystemTray();
 final AppWindow appWindow = AppWindow();
@@ -43,15 +41,7 @@ bool isWindows10OrGreater() {
   return true;
 }
 
-Future<void> main(List<String> args) async {
-  // 判断是否是从子窗口启动的（desktop_multi_window 会传递 ['multi_window', windowId, jsonArgs]）
-  if (args.isNotEmpty && args[0] == 'multi_window') {
-    // 子窗口入口 - 传递 windowId 和 jsonArgs
-    app_window_manager.subWindowEntryPoint(args.sublist(1));
-    return;
-  }
-
-  // 主窗口初始化
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
