@@ -113,17 +113,22 @@ class MultiWindowManager {
     
     // 使用 DesktopMultiWindow.setMethodHandler 监听所有窗口事件
     DesktopMultiWindow.setMethodHandler((call, fromWindowId) async {
-      // 查找对应的 URL 并移除
-      String? urlToRemove;
-      for (final entry in _webviewWindows.entries) {
-        if (entry.value == fromWindowId) {
-          urlToRemove = entry.key;
-          break;
+      if (call.method == 'onClose') {
+        // 从参数中获取关闭的窗口 ID，如果没有则使用 fromWindowId
+        final closedWindowId = call.arguments as int? ?? fromWindowId;
+        
+        // 查找对应的 URL 并移除
+        String? urlToRemove;
+        for (final entry in _webviewWindows.entries) {
+          if (entry.value == closedWindowId) {
+            urlToRemove = entry.key;
+            break;
+          }
         }
-      }
-      if (urlToRemove != null && call.method == 'onClose') {
-        _webviewWindows.remove(urlToRemove);
-        debugPrint('窗口已关闭，移除缓存: $urlToRemove');
+        if (urlToRemove != null) {
+          _webviewWindows.remove(urlToRemove);
+          debugPrint('窗口已关闭，移除缓存: $urlToRemove (窗口ID: $closedWindowId)');
+        }
       }
       return null;
     });

@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
@@ -44,8 +44,21 @@ class _WebViewWindowPageState extends State<WebViewWindowPage> {
 
   @override
   void dispose() {
+    // 通知主窗口当前窗口正在关闭（使用 unawaited 避免阻塞 dispose）
+    unawaited(_notifyWindowClose());
     _webViewController?.dispose();
     super.dispose();
+  }
+
+  /// 通知主窗口当前窗口正在关闭
+  Future<void> _notifyWindowClose() async {
+    try {
+      // 获取当前窗口 ID 并传递给主窗口
+      final windowId = widget.windowController.windowId;
+      await DesktopMultiWindow.invokeMethod(0, 'onClose', windowId);
+    } catch (e) {
+      debugPrint('通知主窗口关闭失败: $e');
+    }
   }
 
   /// 设置窗口标题
