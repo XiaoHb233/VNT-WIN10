@@ -16,7 +16,7 @@ class ConfigManager {
   /// 初始化配置文件路径
   Future<void> init() async {
     if (_initialized) return; // 防止重复初始化
-    
+
     if (Platform.isWindows) {
       final exePath = Platform.resolvedExecutable;
       final exeDir = path.dirname(exePath);
@@ -27,7 +27,7 @@ class ConfigManager {
       }
       
       _configFile = File(path.join(configDir.path, 'config.json'));
-      
+
       if (await _configFile!.exists()) {
         try {
           final content = await _configFile!.readAsString();

@@ -43,7 +43,11 @@ class _IntranetWebViewPageState extends State<IntranetWebViewPage> {
       );
 
       // 启用开发者工具（调试用，发布时可关闭）
-      await _controller.openDevTools();
+      try {
+        await _controller.openDevTools();
+      } catch (e) {
+        debugPrint('[WebView] 打开开发者工具失败: $e');
+      }
 
       // 监听加载状态
       _controller.loadingState.listen((state) {

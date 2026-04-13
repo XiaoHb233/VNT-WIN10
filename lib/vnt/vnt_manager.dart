@@ -179,7 +179,7 @@ class VntBox {
       // uiCall.send(info);
       return true;
     }, generateTunFn: (info) async {
-      //创建vpn
+      // 创建 VPN
       try {
         int fd = await VntAppCall.startVpn(info, vntConfig.mtu ?? 1400);
         return fd;

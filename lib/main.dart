@@ -181,7 +181,7 @@ class _VntAppState extends State<VntApp> {
         themeMode: _themeMode,
         home: PopScope(
           canPop: false,
-          onPopInvoked: (didPop) {
+          onPopInvokedWithResult: (didPop, result) {
             if (didPop) return;
             if (Platform.isAndroid) {
               VntAppCall.moveTaskToBack();
