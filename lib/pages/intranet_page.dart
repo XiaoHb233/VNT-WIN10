@@ -102,7 +102,8 @@ class _IntranetPageState extends State<IntranetPage> {
   }
 
   String _buildAdminUrl() {
-    return 'http://$_adminIp:$_adminPort/admin/dashboard.html';
+    // 直接打开登录页面，避免后端重定向问题
+    return 'http://$_adminIp:$_adminPort/admin/login.html';
   }
 
   /// 打开用户端页面（嵌入WebView）
