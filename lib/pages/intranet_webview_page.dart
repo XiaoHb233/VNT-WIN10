@@ -37,10 +37,13 @@ class _IntranetWebViewPageState extends State<IntranetWebViewPage> {
       // 初始化 WebView
       await _controller.initialize();
 
-      // 设置用户代理
+      // 设置用户代理（模拟 Chrome）
       await _controller.setUserAgent(
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       );
+
+      // 启用开发者工具（调试用，发布时可关闭）
+      await _controller.openDevTools();
 
       // 监听加载状态
       _controller.loadingState.listen((state) {
@@ -58,6 +61,11 @@ class _IntranetWebViewPageState extends State<IntranetWebViewPage> {
             _currentUrl = url;
           });
         }
+      });
+
+      // 监听 WebView 消息（用于调试）
+      _controller.webMessage.listen((message) {
+        debugPrint('[WebView Message] $message');
       });
 
       // 加载初始 URL
@@ -165,7 +173,8 @@ class _IntranetWebViewPageState extends State<IntranetWebViewPage> {
             Webview(
               _controller,
               permissionRequested: (url, permission, isUserInitiated) async {
-                // 允许所有权限请求（文件上传等）
+                debugPrint('[WebView Permission] URL: $url, Permission: $permission, UserInitiated: $isUserInitiated');
+                // 允许所有权限请求（文件上传、摄像头等）
                 return WebviewPermissionDecision.allow;
               },
             ),
