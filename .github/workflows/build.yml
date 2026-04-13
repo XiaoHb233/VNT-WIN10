@@ -146,13 +146,13 @@ jobs:
 
           Set-Location build\windows\x64\runner\Release
 
-          Compress-Archive -Path * -DestinationPath $Env:GITHUB_WORKSPACE/vntApp-windows.zip -Force
+          Compress-Archive -Path * -DestinationPath $Env:GITHUB_WORKSPACE/vntApp-win10.zip -Force
 
       - name: Archive artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vntApp-windows
-          path: vntApp-windows.zip
+          name: vntApp-win10
+          path: vntApp-win10.zip
 
   deploy:
     needs: build
@@ -172,6 +172,6 @@ jobs:
           name: VNT App Windows Build ${{ github.run_number }}
           draft: false
           prerelease: false
-          files: ./artifacts/vntApp-windows/vntApp-windows.zip
+          files: ./artifacts/vntApp-win10/vntApp-win10.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

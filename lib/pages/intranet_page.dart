@@ -161,9 +161,13 @@ class _IntranetPageState extends State<IntranetPage> {
             _currentUrl = currentUrl;
           });
           // 如果是登录页面，自动填充账号密码（用户端 login.html，管理端 admin_login.html）
-          if ((currentUrl.contains('login.html') || currentUrl.contains('admin_login.html')) && 
-              username.isNotEmpty && password.isNotEmpty) {
-            _autoFillLoginForm(controller, username, password, _isUserEnd);
+          if (currentUrl.contains('login.html') || currentUrl.contains('admin_login.html')) {
+            // 根据当前端获取对应的用户名密码
+            final currentUsername = _isUserEnd ? _userUsername : _adminUsername;
+            final currentPassword = _isUserEnd ? _userPassword : _adminPassword;
+            if (currentUsername.isNotEmpty && currentPassword.isNotEmpty) {
+              _autoFillLoginForm(controller, currentUsername, currentPassword, _isUserEnd);
+            }
           }
         }
       });
