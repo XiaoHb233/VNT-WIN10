@@ -104,13 +104,12 @@ class MultiWindowManager {
   }
 
   /// 检查窗口是否存在
-  /// 通过尝试获取窗口标题来检测，不会触发窗口显示
+  /// 通过尝试聚焦窗口来检测，如果窗口已关闭会抛出异常
   Future<bool> _isWindowExists(int windowId) async {
     try {
       final controller = WindowController.fromWindowId(windowId);
-      // 尝试设置相同的标题来检测窗口是否存在
-      // 如果窗口已关闭会抛出异常，不会实际改变标题
-      await controller.setTitle(await controller.getTitle() ?? '');
+      // 尝试聚焦窗口，如果窗口已关闭会抛出异常
+      await controller.show();
       return true;
     } catch (e) {
       debugPrint('窗口 $windowId 不存在或已关闭: $e');
