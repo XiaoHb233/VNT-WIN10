@@ -25,8 +25,6 @@ VNT GUI
 - 支持文件上传功能
 - 支持页面返回和关闭操作
 
-<img width="800" alt="内网访问" src="https://github.com/user-attachments/assets/placeholder-intranet.png" />
-
 ## Build
 
 ### Install
