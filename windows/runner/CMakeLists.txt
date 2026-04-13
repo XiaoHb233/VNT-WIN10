@@ -55,3 +55,18 @@ add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
   ${DLLS_DIR}
   $<TARGET_FILE_DIR:${BINARY_NAME}>/dlls)
+
+# Copy wintun.dll to the executable directory (required by vnt crate)
+# Detect architecture and copy appropriate wintun.dll
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  set(WINTUN_DLL "${DLLS_DIR}/amd64/wintun.dll")
+elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "ARM64")
+  set(WINTUN_DLL "${DLLS_DIR}/arm64/wintun.dll")
+else()
+  set(WINTUN_DLL "${DLLS_DIR}/arm/wintun.dll")
+endif()
+
+add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+  ${WINTUN_DLL}
+  $<TARGET_FILE_DIR:${BINARY_NAME}>/wintun.dll)
