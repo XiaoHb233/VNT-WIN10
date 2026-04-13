@@ -162,7 +162,7 @@ class _IntranetPageState extends State<IntranetPage> {
           });
           // 如果是登录页面，自动填充账号密码
           if (currentUrl.contains('login.html') && username.isNotEmpty && password.isNotEmpty) {
-            _autoFillLoginForm(controller, username, password);
+            _autoFillLoginForm(controller, username, password, _isUserEnd);
           }
         }
       });
@@ -185,14 +185,18 @@ class _IntranetPageState extends State<IntranetPage> {
   }
 
   /// 自动填充登录表单
-  Future<void> _autoFillLoginForm(WebviewController controller, String username, String password) async {
+  Future<void> _autoFillLoginForm(WebviewController controller, String username, String password, bool isUserEnd) async {
     // 延迟一下确保页面元素已加载
     await Future.delayed(const Duration(milliseconds: 500));
     try {
+      // 根据用户端或管理端使用不同的元素 ID
+      final usernameId = isUserEnd ? 'login-username' : 'username';
+      final passwordId = isUserEnd ? 'login-password' : 'password';
+      
       await controller.executeScript('''
         (function() {
           // 填充用户名
-          var usernameInput = document.getElementById('login-username');
+          var usernameInput = document.getElementById('$usernameId');
           if (usernameInput) {
             usernameInput.value = '$username';
             usernameInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -200,17 +204,17 @@ class _IntranetPageState extends State<IntranetPage> {
           }
           
           // 填充密码
-          var passwordInput = document.getElementById('login-password');
+          var passwordInput = document.getElementById('$passwordId');
           if (passwordInput) {
             passwordInput.value = '$password';
             passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
             passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
           }
           
-          console.log('Auto-fill completed for username: $username');
+          console.log('Auto-fill completed for username: $username, isUserEnd: $isUserEnd');
         })();
       ''');
-      debugPrint('自动填充账号密码完成: $username');
+      debugPrint('自动填充账号密码完成: $username, 用户端: $isUserEnd');
     } catch (e) {
       debugPrint('自动填充失败: $e');
     }

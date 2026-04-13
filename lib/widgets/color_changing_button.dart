@@ -30,6 +30,7 @@ class _ColorChangingButtonState extends State<ColorChangingButton> {
 
   void _startColorChange() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
       setState(() {
         _currentIndex = (_currentIndex + 1) % widget.colors.length;
         _currentColor = widget.colors[_currentIndex];
