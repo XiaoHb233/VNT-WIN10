@@ -98,12 +98,13 @@ class _IntranetPageState extends State<IntranetPage> {
   }
 
   String _buildUserUrl() {
+    // 打开主页面，如果未登录后端会返回登录页面
     return 'http://$_userIp:$_userPort/index.html';
   }
 
   String _buildAdminUrl() {
-    // 直接打开登录页面，避免后端重定向问题
-    return 'http://$_adminIp:$_adminPort/admin/login.html';
+    // 打开管理后台，如果未登录后端会返回登录页面
+    return 'http://$_adminIp:$_adminPort/admin/dashboard.html';
   }
 
   /// 打开用户端页面（嵌入WebView）
@@ -135,7 +136,10 @@ class _IntranetPageState extends State<IntranetPage> {
     });
 
     try {
-      final controller = WebviewController();
+      // 使用固定的用户数据目录，确保 Cookie 和缓存持久化
+      final controller = WebviewController(
+        userDataFolder: 'vnt_app_webview_data',
+      );
       _webViewController = controller;
 
       // 初始化 WebView
@@ -155,21 +159,12 @@ class _IntranetPageState extends State<IntranetPage> {
         }
       });
 
-      // 监听导航事件 - 用于自动填充账号密码
+      // 监听导航事件
       controller.url.listen((currentUrl) {
         if (mounted) {
           setState(() {
             _currentUrl = currentUrl;
           });
-          // 如果是登录页面，自动填充账号密码（用户端 login.html，管理端 /admin/login.html）
-          if (currentUrl.contains('login.html') || currentUrl.contains('/admin/login.html')) {
-            // 根据当前端获取对应的用户名密码
-            final currentUsername = _isUserEnd ? _userUsername : _adminUsername;
-            final currentPassword = _isUserEnd ? _userPassword : _adminPassword;
-            if (currentUsername.isNotEmpty && currentPassword.isNotEmpty) {
-              _autoFillLoginForm(controller, currentUsername, currentPassword, _isUserEnd);
-            }
-          }
         }
       });
 
@@ -190,41 +185,7 @@ class _IntranetPageState extends State<IntranetPage> {
     }
   }
 
-  /// 自动填充登录表单
-  Future<void> _autoFillLoginForm(WebviewController controller, String username, String password, bool isUserEnd) async {
-    // 延迟一下确保页面元素已加载
-    await Future.delayed(const Duration(milliseconds: 500));
-    try {
-      // 根据用户端或管理端使用不同的元素 ID
-      final usernameId = isUserEnd ? 'login-username' : 'username';
-      final passwordId = isUserEnd ? 'login-password' : 'password';
-      
-      await controller.executeScript('''
-        (function() {
-          // 填充用户名
-          var usernameInput = document.getElementById('$usernameId');
-          if (usernameInput) {
-            usernameInput.value = '$username';
-            usernameInput.dispatchEvent(new Event('input', { bubbles: true }));
-            usernameInput.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-          
-          // 填充密码
-          var passwordInput = document.getElementById('$passwordId');
-          if (passwordInput) {
-            passwordInput.value = '$password';
-            passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
-            passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-          
-          console.log('Auto-fill completed for username: $username, isUserEnd: $isUserEnd');
-        })();
-      ''');
-      debugPrint('自动填充账号密码完成: $username, 用户端: $isUserEnd');
-    } catch (e) {
-      debugPrint('自动填充失败: $e');
-    }
-  }
+
 
   /// 关闭WebView，返回入口选择页面
   void _closeWebView() {
