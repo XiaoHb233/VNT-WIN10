@@ -57,7 +57,8 @@ class MultiWindowManager {
     if (windowId != null) {
       try {
         final controller = WindowController.fromWindowId(windowId);
-        await controller.focus();
+        // 使用 invokeMethod 调用 focus
+        await DesktopMultiWindow.invokeMethod(windowId, 'focus');
         return;
       } catch (e) {
         // 窗口可能已关闭，从 map 中移除
@@ -76,17 +77,18 @@ class MultiWindowManager {
       WindowArgs.passwordId: passwordId,
     }));
 
-    // 设置窗口属性
+    // 设置窗口标题
     await window.setTitle(title);
-    await window.setFrame(
-      Offset(
-        (window.screen?.frame.width ?? 1920) / 2 - width / 2,
-        (window.screen?.frame.height ?? 1080) / 2 - height / 2,
-      ) & Size(width, height),
-    );
     
-    // 设置最小窗口大小
-    await window.setMinimumSize(const Size(800, 600));
+    // 设置窗口大小和位置（居中）
+    final screenWidth = 1920.0; // 默认屏幕宽度
+    final screenHeight = 1080.0; // 默认屏幕高度
+    final x = (screenWidth - width) / 2;
+    final y = (screenHeight - height) / 2;
+    
+    await window.setFrame(
+      Rect.fromLTWH(x, y, width, height),
+    );
     
     // 居中显示
     await window.center();
@@ -97,32 +99,21 @@ class MultiWindowManager {
     // 保存窗口 ID
     _webviewWindows[url] = window.windowId;
 
-    // 监听窗口关闭事件
-    window.addListener(_createWindowListener(url, window.windowId));
+    // 监听窗口事件
+    _setupWindowListener(url, window.windowId);
   }
 
-  /// 创建窗口监听器
-  WindowListener _createWindowListener(String url, int windowId) {
-    return WindowListener(
-      onWindowClose: () {
-        _webviewWindows.remove(url);
-      },
-      onWindowFocus: () {},
-      onWindowBlur: () {},
-      onWindowMaximize: () {},
-      onWindowUnmaximize: () {},
-      onWindowMinimize: () {},
-      onWindowRestore: () {},
-      onWindowResize: () {},
-      onWindowMove: () {},
-      onWindowEnterFullScreen: () {},
-      onWindowLeaveFullScreen: () {},
-      onWindowEvent: (eventName) {
-        if (eventName == 'close') {
+  /// 设置窗口监听器
+  void _setupWindowListener(String url, int windowId) {
+    // 使用 DesktopMultiWindow.setMethodHandler 监听窗口事件
+    DesktopMultiWindow.setMethodHandler((call, fromWindowId) async {
+      if (fromWindowId == windowId) {
+        if (call.method == 'onClose') {
           _webviewWindows.remove(url);
         }
-      },
-    );
+      }
+      return null;
+    });
   }
 
   /// 关闭所有 WebView 窗口
@@ -147,6 +138,8 @@ void subWindowEntryPoint(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // 解析窗口参数
+  // args[0] = windowId
+  // args[1] = jsonArgs
   final windowId = int.parse(args[0]);
   final windowController = WindowController.fromWindowId(windowId);
   

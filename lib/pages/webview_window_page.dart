@@ -185,13 +185,10 @@ class _WebViewWindowPageState extends State<WebViewWindowPage> {
       return;
     }
     try {
-      final canGoBack = await _webViewController!.canGoBack();
-      if (canGoBack) {
-        await _webViewController!.goBack();
-      } else {
-        _closeWindow();
-      }
+      // webview_windows 插件没有 canGoBack 方法，直接尝试 goBack
+      await _webViewController!.goBack();
     } catch (e) {
+      // 如果无法后退（已经在第一页），关闭窗口
       _closeWindow();
     }
   }
