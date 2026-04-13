@@ -136,10 +136,7 @@ class _IntranetPageState extends State<IntranetPage> {
     });
 
     try {
-      // 使用固定的用户数据目录，确保 Cookie 和缓存持久化
-      final controller = WebviewController(
-        userDataFolder: 'vnt_app_webview_data',
-      );
+      final controller = WebviewController();
       _webViewController = controller;
 
       // 初始化 WebView
