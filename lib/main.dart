@@ -18,7 +18,6 @@ import 'package:vnt_app/utils/log_utils.dart';
 import 'package:vnt_app/network_config.dart';
 import 'package:vnt_app/system_tray_manager.dart';
 import 'package:vnt_app/config_manager.dart';
-import 'package:vnt_app/intranet/intranet_manager.dart';
 
 final SystemTray systemTray = SystemTray();
 final AppWindow appWindow = AppWindow();
@@ -61,14 +60,6 @@ Future<void> main() async {
   
   // 初始化配置管理器
   await ConfigManager().init();
-
-  // 初始化内网功能
-  try {
-    await IntranetManager().init();
-    debugPrint('内网功能初始化成功');
-  } catch (e) {
-    debugPrint('内网功能初始化失败: $e');
-  }
 
   // 初始化日志系统
   try {

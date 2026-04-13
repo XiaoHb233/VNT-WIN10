@@ -95,9 +95,10 @@ class _IntranetWebViewPageState extends State<IntranetWebViewPage> {
   }
 
   Future<void> _goBack() async {
-    if (await _controller.canGoBack) {
+    try {
       await _controller.goBack();
-    } else {
+    } catch (e) {
+      // 无法返回时关闭页面
       Navigator.pop(context);
     }
   }
