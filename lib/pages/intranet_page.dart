@@ -17,14 +17,22 @@ class _IntranetPageState extends State<IntranetPage> {
   // 配置存储键
   static const String _userIpKey = 'intranet_user_ip';
   static const String _userPortKey = 'intranet_user_port';
+  static const String _userUsernameKey = 'intranet_user_username';
+  static const String _userPasswordKey = 'intranet_user_password';
   static const String _adminIpKey = 'intranet_admin_ip';
   static const String _adminPortKey = 'intranet_admin_port';
+  static const String _adminUsernameKey = 'intranet_admin_username';
+  static const String _adminPasswordKey = 'intranet_admin_password';
 
   // 默认配置
   String _userIp = '127.0.0.1';
   String _userPort = '8080';
+  String _userUsername = '';
+  String _userPassword = '';
   String _adminIp = '127.0.0.1';
   String _adminPort = '8081';
+  String _adminUsername = '';
+  String _adminPassword = '';
 
   // WebView 相关状态
   WebviewController? _webViewController;
@@ -33,6 +41,7 @@ class _IntranetPageState extends State<IntranetPage> {
   String _webViewTitle = '';
   String _errorMessage = '';
   bool _showWebView = false;
+  bool _isUserEnd = true; // 当前是否是用户端
 
   @override
   void initState() {
@@ -51,28 +60,40 @@ class _IntranetPageState extends State<IntranetPage> {
     setState(() {
       _userIp = prefs.getString(_userIpKey) ?? '127.0.0.1';
       _userPort = prefs.getString(_userPortKey) ?? '8080';
+      _userUsername = prefs.getString(_userUsernameKey) ?? '';
+      _userPassword = prefs.getString(_userPasswordKey) ?? '';
       _adminIp = prefs.getString(_adminIpKey) ?? '127.0.0.1';
       _adminPort = prefs.getString(_adminPortKey) ?? '8081';
+      _adminUsername = prefs.getString(_adminUsernameKey) ?? '';
+      _adminPassword = prefs.getString(_adminPasswordKey) ?? '';
     });
   }
 
-  Future<void> _saveUserConfig(String ip, String port) async {
+  Future<void> _saveUserConfig(String ip, String port, String username, String password) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_userIpKey, ip);
     await prefs.setString(_userPortKey, port);
+    await prefs.setString(_userUsernameKey, username);
+    await prefs.setString(_userPasswordKey, password);
     setState(() {
       _userIp = ip;
       _userPort = port;
+      _userUsername = username;
+      _userPassword = password;
     });
   }
 
-  Future<void> _saveAdminConfig(String ip, String port) async {
+  Future<void> _saveAdminConfig(String ip, String port, String username, String password) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_adminIpKey, ip);
     await prefs.setString(_adminPortKey, port);
+    await prefs.setString(_adminUsernameKey, username);
+    await prefs.setString(_adminPasswordKey, password);
     setState(() {
       _adminIp = ip;
       _adminPort = port;
+      _adminUsername = username;
+      _adminPassword = password;
     });
   }
 
@@ -86,16 +107,18 @@ class _IntranetPageState extends State<IntranetPage> {
 
   /// 打开用户端页面（嵌入WebView）
   void _openUserPage() {
-    _openWebView('用户端', _buildUserUrl());
+    _isUserEnd = true;
+    _openWebView('用户端', _buildUserUrl(), _userUsername, _userPassword);
   }
 
   /// 打开管理端页面（嵌入WebView）
   void _openAdminPage() {
-    _openWebView('管理端', _buildAdminUrl());
+    _isUserEnd = false;
+    _openWebView('管理端', _buildAdminUrl(), _adminUsername, _adminPassword);
   }
 
   /// 初始化并加载WebView
-  Future<void> _openWebView(String title, String url) async {
+  Future<void> _openWebView(String title, String url, String username, String password) async {
     // 如果已经有WebView，先释放
     if (_webViewController != null) {
       await _webViewController!.dispose();
@@ -117,9 +140,6 @@ class _IntranetPageState extends State<IntranetPage> {
       // 初始化 WebView
       await controller.initialize();
 
-      // 启用Cookie持久化（关键：让WebView记住登录状态）
-      await _enableCookiePersistence(controller);
-
       // 设置用户代理（模拟 Chrome）
       await controller.setUserAgent(
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -134,12 +154,16 @@ class _IntranetPageState extends State<IntranetPage> {
         }
       });
 
-      // 监听导航事件
-      controller.url.listen((url) {
+      // 监听导航事件 - 用于自动填充账号密码
+      controller.url.listen((currentUrl) {
         if (mounted) {
           setState(() {
-            _currentUrl = url;
+            _currentUrl = currentUrl;
           });
+          // 如果是登录页面，自动填充账号密码
+          if (currentUrl.contains('login.html') && username.isNotEmpty && password.isNotEmpty) {
+            _autoFillLoginForm(controller, username, password);
+          }
         }
       });
 
@@ -160,22 +184,35 @@ class _IntranetPageState extends State<IntranetPage> {
     }
   }
 
-  /// 启用Cookie持久化，确保登录状态可以缓存
-  Future<void> _enableCookiePersistence(WebviewController controller) async {
+  /// 自动填充登录表单
+  Future<void> _autoFillLoginForm(WebviewController controller, String username, String password) async {
+    // 延迟一下确保页面元素已加载
+    await Future.delayed(const Duration(milliseconds: 500));
     try {
-      // 通过执行JavaScript来确保localStorage和sessionStorage可用
-      // 这对于大多数基于Web的登录系统（使用localStorage存储token）很重要
       await controller.executeScript('''
-        // 确保存储功能正常
-        if (typeof localStorage !== 'undefined') {
-          console.log('localStorage is available');
-        }
-        if (typeof sessionStorage !== 'undefined') {
-          console.log('sessionStorage is available');
-        }
+        (function() {
+          // 填充用户名
+          var usernameInput = document.getElementById('login-username');
+          if (usernameInput) {
+            usernameInput.value = '$username';
+            usernameInput.dispatchEvent(new Event('input', { bubbles: true }));
+            usernameInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          
+          // 填充密码
+          var passwordInput = document.getElementById('login-password');
+          if (passwordInput) {
+            passwordInput.value = '$password';
+            passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+            passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          
+          console.log('Auto-fill completed for username: $username');
+        })();
       ''');
+      debugPrint('自动填充账号密码完成: $username');
     } catch (e) {
-      debugPrint('Cookie persistence setup warning: $e');
+      debugPrint('自动填充失败: $e');
     }
   }
 
@@ -225,6 +262,8 @@ class _IntranetPageState extends State<IntranetPage> {
   void _showUserConfigDialog() {
     final ipController = TextEditingController(text: _userIp);
     final portController = TextEditingController(text: _userPort);
+    final usernameController = TextEditingController(text: _userUsername);
+    final passwordController = TextEditingController(text: _userPassword);
 
     showDialog(
       context: context,
@@ -243,42 +282,77 @@ class _IntranetPageState extends State<IntranetPage> {
                 : AppTheme.lightTextPrimary,
           ),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: ipController,
-              decoration: InputDecoration(
-                labelText: '服务器地址',
-                hintText: '例如: 127.0.0.1',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(context.cardRadius),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: ipController,
+                decoration: InputDecoration(
+                  labelText: '服务器地址',
+                  hintText: '例如: 127.0.0.1',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(context.cardRadius),
+                  ),
+                ),
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? AppTheme.darkTextPrimary
+                      : AppTheme.lightTextPrimary,
                 ),
               ),
-              style: TextStyle(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? AppTheme.darkTextPrimary
-                    : AppTheme.lightTextPrimary,
-              ),
-            ),
-            SizedBox(height: context.spacingMedium),
-            TextField(
-              controller: portController,
-              decoration: InputDecoration(
-                labelText: '端口',
-                hintText: '例如: 8080',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(context.cardRadius),
+              SizedBox(height: context.spacingMedium),
+              TextField(
+                controller: portController,
+                decoration: InputDecoration(
+                  labelText: '端口',
+                  hintText: '例如: 8080',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(context.cardRadius),
+                  ),
+                ),
+                keyboardType: TextInputType.number,
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? AppTheme.darkTextPrimary
+                      : AppTheme.lightTextPrimary,
                 ),
               ),
-              keyboardType: TextInputType.number,
-              style: TextStyle(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? AppTheme.darkTextPrimary
-                    : AppTheme.lightTextPrimary,
+              SizedBox(height: context.spacingMedium),
+              TextField(
+                controller: usernameController,
+                decoration: InputDecoration(
+                  labelText: '用户名（可选，用于自动填充）',
+                  hintText: '请输入用户名',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(context.cardRadius),
+                  ),
+                ),
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? AppTheme.darkTextPrimary
+                      : AppTheme.lightTextPrimary,
+                ),
               ),
-            ),
-          ],
+              SizedBox(height: context.spacingMedium),
+              TextField(
+                controller: passwordController,
+                decoration: InputDecoration(
+                  labelText: '密码（可选，用于自动填充）',
+                  hintText: '请输入密码',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(context.cardRadius),
+                  ),
+                ),
+                obscureText: true,
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? AppTheme.darkTextPrimary
+                      : AppTheme.lightTextPrimary,
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -296,6 +370,8 @@ class _IntranetPageState extends State<IntranetPage> {
             onPressed: () async {
               String ip = ipController.text.trim();
               String port = portController.text.trim();
+              String username = usernameController.text.trim();
+              String password = passwordController.text.trim();
 
               // 清理输入
               ip = ip.replaceAll(RegExp(r'^https?://'), '');
@@ -304,17 +380,19 @@ class _IntranetPageState extends State<IntranetPage> {
 
               if (ip.isEmpty || port.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('请填写完整配置')),
+                  const SnackBar(content: Text('请填写服务器地址和端口')),
                 );
                 return;
               }
 
-              await _saveUserConfig(ip, port);
               Navigator.pop(context);
+              await _saveUserConfig(ip, port, username, password);
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('用户端配置已保存')),
-              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('用户端配置已保存')),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Theme.of(context).primaryColor,
@@ -333,6 +411,8 @@ class _IntranetPageState extends State<IntranetPage> {
   void _showAdminConfigDialog() {
     final ipController = TextEditingController(text: _adminIp);
     final portController = TextEditingController(text: _adminPort);
+    final usernameController = TextEditingController(text: _adminUsername);
+    final passwordController = TextEditingController(text: _adminPassword);
 
     showDialog(
       context: context,
@@ -351,42 +431,77 @@ class _IntranetPageState extends State<IntranetPage> {
                 : AppTheme.lightTextPrimary,
           ),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: ipController,
-              decoration: InputDecoration(
-                labelText: '服务器地址',
-                hintText: '例如: 127.0.0.1',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(context.cardRadius),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: ipController,
+                decoration: InputDecoration(
+                  labelText: '服务器地址',
+                  hintText: '例如: 127.0.0.1',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(context.cardRadius),
+                  ),
+                ),
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? AppTheme.darkTextPrimary
+                      : AppTheme.lightTextPrimary,
                 ),
               ),
-              style: TextStyle(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? AppTheme.darkTextPrimary
-                    : AppTheme.lightTextPrimary,
-              ),
-            ),
-            SizedBox(height: context.spacingMedium),
-            TextField(
-              controller: portController,
-              decoration: InputDecoration(
-                labelText: '端口',
-                hintText: '例如: 8081',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(context.cardRadius),
+              SizedBox(height: context.spacingMedium),
+              TextField(
+                controller: portController,
+                decoration: InputDecoration(
+                  labelText: '端口',
+                  hintText: '例如: 8081',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(context.cardRadius),
+                  ),
+                ),
+                keyboardType: TextInputType.number,
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? AppTheme.darkTextPrimary
+                      : AppTheme.lightTextPrimary,
                 ),
               ),
-              keyboardType: TextInputType.number,
-              style: TextStyle(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? AppTheme.darkTextPrimary
-                    : AppTheme.lightTextPrimary,
+              SizedBox(height: context.spacingMedium),
+              TextField(
+                controller: usernameController,
+                decoration: InputDecoration(
+                  labelText: '用户名（可选，用于自动填充）',
+                  hintText: '请输入用户名',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(context.cardRadius),
+                  ),
+                ),
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? AppTheme.darkTextPrimary
+                      : AppTheme.lightTextPrimary,
+                ),
               ),
-            ),
-          ],
+              SizedBox(height: context.spacingMedium),
+              TextField(
+                controller: passwordController,
+                decoration: InputDecoration(
+                  labelText: '密码（可选，用于自动填充）',
+                  hintText: '请输入密码',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(context.cardRadius),
+                  ),
+                ),
+                obscureText: true,
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? AppTheme.darkTextPrimary
+                      : AppTheme.lightTextPrimary,
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -404,6 +519,8 @@ class _IntranetPageState extends State<IntranetPage> {
             onPressed: () async {
               String ip = ipController.text.trim();
               String port = portController.text.trim();
+              String username = usernameController.text.trim();
+              String password = passwordController.text.trim();
 
               // 清理输入
               ip = ip.replaceAll(RegExp(r'^https?://'), '');
@@ -412,17 +529,19 @@ class _IntranetPageState extends State<IntranetPage> {
 
               if (ip.isEmpty || port.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('请填写完整配置')),
+                  const SnackBar(content: Text('请填写服务器地址和端口')),
                 );
                 return;
               }
 
-              await _saveAdminConfig(ip, port);
               Navigator.pop(context);
+              await _saveAdminConfig(ip, port, username, password);
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('管理端配置已保存')),
-              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('管理端配置已保存')),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Theme.of(context).primaryColor,
@@ -473,6 +592,7 @@ class _IntranetPageState extends State<IntranetPage> {
             icon: Icons.person_outline,
             ip: _userIp,
             port: _userPort,
+            username: _userUsername,
             onTap: _openUserPage,
             onConfigTap: _showUserConfigDialog,
           ),
@@ -486,6 +606,7 @@ class _IntranetPageState extends State<IntranetPage> {
             icon: Icons.admin_panel_settings_outlined,
             ip: _adminIp,
             port: _adminPort,
+            username: _adminUsername,
             onTap: _openAdminPage,
             onConfigTap: _showAdminConfigDialog,
           ),
@@ -731,6 +852,7 @@ class _IntranetPageState extends State<IntranetPage> {
     required IconData icon,
     required String ip,
     required String port,
+    required String username,
     required VoidCallback onTap,
     required VoidCallback onConfigTap,
   }) {
@@ -807,6 +929,26 @@ class _IntranetPageState extends State<IntranetPage> {
                         ),
                       ],
                     ),
+                    if (username.isNotEmpty)
+                      SizedBox(height: context.spacingSmall),
+                    if (username.isNotEmpty)
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.person,
+                            size: context.iconSmall,
+                            color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                          ),
+                          SizedBox(width: context.spacingSmall / 2),
+                          Text(
+                            '用户: $username',
+                            style: TextStyle(
+                              fontSize: context.fontSmall,
+                              color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               ),
