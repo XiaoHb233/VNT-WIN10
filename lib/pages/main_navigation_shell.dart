@@ -9,6 +9,7 @@ import 'package:vnt_app/pages/room_page.dart';
 import 'package:vnt_app/pages/config_list_page.dart';
 import 'package:vnt_app/pages/settings_page.dart';
 import 'package:vnt_app/pages/about_page.dart';
+import 'package:vnt_app/pages/intranet_page.dart';
 import 'package:vnt_app/vnt/vnt_manager.dart';
 import 'package:vnt_app/utils/toast_utils.dart';
 import 'package:vnt_app/utils/responsive_utils.dart';
@@ -40,6 +41,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   static const List<_NavItem> _navItems = [
     _NavItem(icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard, label: '仪表盘'),
     _NavItem(icon: Icons.meeting_room_outlined, activeIcon: Icons.meeting_room, label: '房间'),
+    _NavItem(icon: Icons.language_outlined, activeIcon: Icons.language, label: '内网'),
     _NavItem(icon: Icons.folder_outlined, activeIcon: Icons.folder, label: '配置'),
     _NavItem(icon: Icons.settings_outlined, activeIcon: Icons.settings, label: '设置'),
     _NavItem(icon: Icons.info_outline, activeIcon: Icons.info, label: '关于'),
@@ -602,7 +604,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                 }
               : null,
         ),
-        // 2: 配置
+        // 2: 内网
+        const IntranetPage(),
+        // 3: 配置
         ConfigListPage(
           onConfigSelected: (config) {
             setState(() {
@@ -618,7 +622,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             _refreshSettings?.call();
           },
         ),
-        // 3: 设置
+        // 4: 设置
         SettingsPage(
           themeMode: themeProvider?.themeMode ?? ThemeMode.system,
           onThemeModeChanged: (mode) {
@@ -632,7 +636,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             _refreshSettings = callback;
           },
         ),
-        // 4: 关于
+        // 5: 关于
         const AboutPage(),
       ],
     );

@@ -15,7 +15,6 @@ import 'package:cross_file/cross_file.dart';
 import 'package:vnt_app/connect_log.dart';
 import 'package:vnt_app/vnt/vnt_manager.dart';
 import 'package:vnt_app/system_tray_manager.dart';
-import 'package:vnt_app/intranet/intranet_settings_widget.dart';
 
 /// 设置页面
 class SettingsPage extends StatefulWidget {
@@ -338,12 +337,6 @@ class _SettingsPageState extends State<SettingsPage> {
               SizedBox(height: context.spacingSmall),
               _buildAppSettings(isDark),
               SizedBox(height: context.spacingLarge),
-
-              // 内网功能
-              SizedBox(height: context.spacingLarge),
-              _buildSectionTitle(isDark, '内网功能'),
-              SizedBox(height: context.spacingSmall),
-              const IntranetSettingsWidget(),
 
               // 数据管理
               SizedBox(height: context.spacingLarge),
