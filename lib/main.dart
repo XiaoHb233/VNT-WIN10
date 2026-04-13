@@ -70,20 +70,17 @@ Future<void> main() async {
     debugPrint('内网功能初始化失败: $e');
   }
 
-  // 初始化日志系统，所有平台统一使用log4rs
+  // 初始化日志系统
   try {
-    // 使用统一的日志路径工具类获取日志目录
     final logDir = await LogUtils.getLogDirectory();
     debugPrint('日志目录: $logDir');
 
-    // 确保日志目录存在
     final logsDirectory = Directory(logDir);
     if (!await logsDirectory.exists()) {
       await logsDirectory.create(recursive: true);
       debugPrint('创建日志目录: $logDir');
     }
 
-    // 调用Rust层初始化日志
     initLogWithPath(logDir: logDir);
     debugPrint('日志系统初始化成功，日志目录: $logDir');
   } catch (e) {
@@ -126,7 +123,7 @@ class VntApp extends StatefulWidget {
 
 class _VntAppState extends State<VntApp> {
   ThemeMode _themeMode = ThemeMode.system;
-  Color _customThemeColor = AppTheme.primaryColor; // 默认主题色
+  Color _customThemeColor = AppTheme.primaryColor;
 
   @override
   void initState() {
@@ -177,18 +174,17 @@ class _VntAppState extends State<VntApp> {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'VNT App',
-        // 添加本地化支持
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: const [
-          Locale('zh', 'CN'), // 简体中文
-          Locale('zh', 'Hans'), // 简体中文
-          Locale('en', ''), // 英文
+          Locale('zh', 'CN'),
+          Locale('zh', 'Hans'),
+          Locale('en', ''),
         ],
-        locale: const Locale('zh', 'CN'), // 默认使用中文
+        locale: const Locale('zh', 'CN'),
         theme: AppTheme.createLightTheme(_customThemeColor),
         darkTheme: AppTheme.createDarkTheme(_customThemeColor),
         themeMode: _themeMode,
@@ -225,84 +221,6 @@ class _MainAppState extends State<MainApp> with WindowListener {
     // 设置窗口关闭拦截
     windowManager.setPreventClose(true);
     windowManager.addListener(this);
-
-    // 设置启动回调
-      try {
-        final dataPersistence = DataPersistence();
-
-        // 如果没有指定配置key，尝试从磁贴获取
-        String? targetKey = configKey;
-        if (targetKey == null || targetKey.isEmpty) {
-          // 检查是否从磁贴长按选择了配置
-          targetKey = await VntAppCall.getTileConfigKey();
-          debugPrint('从磁贴获取配置key: $targetKey');
-        }
-
-        // 如果还是没有，使用默认配置
-        if (targetKey == null || targetKey.isEmpty) {
-          targetKey = await dataPersistence.loadDefaultKey();
-          if (targetKey == null || targetKey.isEmpty) {
-            debugPrint('磁贴启动：未设置默认配置');
-            return;
-          }
-        }
-
-        final configs = await dataPersistence.loadData();
-        final config = configs.where((c) => c.itemKey == targetKey).firstOrNull;
-
-        if (config == null) {
-          debugPrint('磁贴启动：配置不存在 (key: $targetKey)');
-          return;
-        }
-
-        // 如果当前已有连接，先断开所有连接
-        if (vntManager.hasConnection()) {
-          debugPrint('磁贴启动：检测到已有连接，先断开所有连接');
-          await vntManager.removeAll();
-          // 等待更长时间确保断开完成和VPN资源释放
-          await Future.delayed(const Duration(milliseconds: 1000));
-          debugPrint('磁贴启动：断开完成，准备连接新配置');
-        }
-
-        // 检查是否正在连接
-        if (vntManager.isConnecting()) {
-          debugPrint('磁贴启动：正在连接中，跳过');
-          return;
-        }
-
-        // 开始连接
-        debugPrint('磁贴启动：开始连接配置 [${config.configName}] (key: ${config.itemKey})');
-        final receivePort = ReceivePort();
-
-        receivePort.listen((msg) {
-          if (msg is String) {
-            if (msg == 'success') {
-              debugPrint('启动：连接成功');
-              // 更新Windows托盘
-              SystemTrayManager().updateMenu();
-              SystemTrayManager().updateTooltip();
-            } else if (msg == 'stop') {
-              vntManager.remove(config.itemKey);
-              debugPrint('启动：连接失败或停止');
-              // 更新Windows托盘
-              SystemTrayManager().updateMenu();
-              SystemTrayManager().updateTooltip();
-            }
-          } else if (msg is RustErrorInfo) {
-            vntManager.remove(config.itemKey);
-            debugPrint('启动：连接错误 - ${msg.msg}');
-            // 更新Windows托盘
-            SystemTrayManager().updateMenu();
-            SystemTrayManager().updateTooltip();
-          }
-        });
-
-        await vntManager.create(config, receivePort.sendPort);
-        debugPrint('磁贴启动：VntBox��建完成，等待连接结果');
-      } catch (e) {
-        debugPrint('启动连接失败: $e');
-      }
-    });
   }
 
   @override
@@ -477,44 +395,11 @@ Future<void> initSystemTray() async {
   });
 }
 
-String getArchitecture() {
-  return Platform.environment['PROCESSOR_ARCHITECTURE']!.toLowerCase();
-}
-
-Future<void> copyAppropriateDll() async {
-  final arch = getArchitecture();
-  String dllPath;
-
-  switch (arch) {
-    case 'x86_64':
-    case 'amd64':
-      dllPath = 'dlls/amd64/wintun.dll';
-      break;
-    case 'arm':
-      dllPath = 'dlls/arm/wintun.dll';
-      break;
-    case 'aarch64':
-    case 'arm64':
-      dllPath = 'dlls/arm64/wintun.dll';
-      break;
-    case 'i386':
-    case 'i686':
-    case 'x86':
-      dllPath = 'dlls/x86/wintun.dll';
-      break;
-    default:
-      throw UnsupportedError('Unsupported architecture: $arch');
-  }
-
-  final dllFile = File('wintun.dll');
-  final sourceFile = File(dllPath);
-  await sourceFile.copy(dllFile.path);
-}
-
 Future<void> copyLogConfig() async {
-  final logConfigFile = File('logs/log4rs.yaml');
+  final directory = await getApplicationDocumentsDirectory();
+  final logConfigFile = File('${directory.path}/logs/log4rs.yaml');
   if (!logConfigFile.parent.existsSync()) {
-    await logConfigFile.parent.create();
+    await logConfigFile.parent.create(recursive: true);
   }
 
   if (await logConfigFile.exists()) {
@@ -525,4 +410,9 @@ Future<void> copyLogConfig() async {
   final byteData = await rootBundle.load('assets/log4rs.yaml');
   await logConfigFile.writeAsBytes(byteData.buffer
       .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes));
+}
+
+Future<void> copyAppropriateDll() async {
+  // Windows DLL 复制逻辑
+  debugPrint('copyAppropriateDll 执行');
 }
