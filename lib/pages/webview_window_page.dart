@@ -1,7 +1,7 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:webview_windows/webview_windows.dart';
 import 'package:vnt_app/theme/app_theme.dart';
@@ -44,20 +44,25 @@ class _WebViewWindowPageState extends State<WebViewWindowPage> {
 
   @override
   void dispose() {
-    // 通知主窗口当前窗口正在关闭（使用 unawaited 避免阻塞 dispose）
-    unawaited(_notifyWindowClose());
+    // 同步释放 WebView 控制器资源
+    // 注意：WebviewController.dispose() 是异步的，但 Flutter 的 dispose 必须是同步的
+    // 这里直接调用，让插件内部处理异步清理
     _webViewController?.dispose();
+    
+    // 通知主窗口从缓存中移除当前窗口
+    _notifyWindowClosed();
+    
     super.dispose();
   }
-
-  /// 通知主窗口当前窗口正在关闭
-  Future<void> _notifyWindowClose() async {
+  
+  /// 通知主窗口当前窗口已关闭
+  void _notifyWindowClosed() {
     try {
-      // 获取当前窗口 ID 并传递给主窗口
-      final windowId = widget.windowController.windowId;
-      await DesktopMultiWindow.invokeMethod(0, 'onClose', windowId);
+      // 使用 invokeMethod 通知主窗口（窗口 ID 为 0）
+      DesktopMultiWindow.invokeMethod(0, 'windowClosed', _url);
     } catch (e) {
-      debugPrint('通知主窗口关闭失败: $e');
+      // 忽略通知失败的情况
+      debugPrint('通知主窗口窗口关闭失败: $e');
     }
   }
 
@@ -112,10 +117,27 @@ class _WebViewWindowPageState extends State<WebViewWindowPage> {
 
       // 加载 URL
       await controller.loadUrl(_url);
-    } catch (e) {
+    } on MissingPluginException catch (e) {
+      debugPrint('WebView 插件未正确初始化: $e');
       if (mounted) {
         setState(() {
-          _errorMessage = 'WebView 初始化失败: $e';
+          _errorMessage = 'WebView 插件初始化失败，请重启应用';
+          _isLoading = false;
+        });
+      }
+    } on FormatException catch (e) {
+      debugPrint('URL 格式错误: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'URL 格式错误: $_url';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('WebView 初始化失败: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = '页面加载失败: ${e.toString().split('\n').first}';
           _isLoading = false;
         });
       }
@@ -126,6 +148,12 @@ class _WebViewWindowPageState extends State<WebViewWindowPage> {
   Future<void> _checkAndAutoFill(WebviewController controller) async {
     // 如果没有配置用户名密码，跳过
     if (_username.isEmpty || _password.isEmpty) return;
+    
+    // 验证元素 ID 安全性
+    if (!_isValidElementId(_usernameId) || !_isValidElementId(_passwordId)) {
+      debugPrint('元素 ID 包含非法字符，跳过自动填充');
+      return;
+    }
 
     // 延迟确保页面元素已加载
     await Future.delayed(const Duration(milliseconds: 800));
@@ -165,14 +193,19 @@ class _WebViewWindowPageState extends State<WebViewWindowPage> {
     }
   }
 
-  /// 转义 JavaScript 字符串
+  /// 转义 JavaScript 字符串，防止 XSS 攻击
+  /// 使用 JSON 编码确保特殊字符被正确处理
   String _escapeJsString(String str) {
-    return str
-        .replaceAll('\\', '\\\\')
-        .replaceAll("'", "\\'")
-        .replaceAll('"', '\\"')
-        .replaceAll('\n', '\\n')
-        .replaceAll('\r', '\\r');
+    // 使用 JSON 编码来处理特殊字符，比手动替换更安全
+    final encoded = jsonEncode(str);
+    // jsonEncode 会添加引号，需要去掉
+    return encoded.substring(1, encoded.length - 1);
+  }
+  
+  /// 验证元素 ID 是否安全（防止注入）
+  bool _isValidElementId(String id) {
+    // 只允许字母、数字、连字符、下划线
+    return RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(id);
   }
 
   /// 刷新当前页面

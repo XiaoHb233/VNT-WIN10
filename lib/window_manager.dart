@@ -27,14 +27,13 @@ class MultiWindowManager {
   static final MultiWindowManager _instance = MultiWindowManager._internal();
   factory MultiWindowManager() => _instance;
   MultiWindowManager._internal() {
-    // 初始化全局方法处理器
     _initMethodHandler();
   }
 
   // 存储已创建的 WebView 窗口 ID，用于复用
   final Map<String, int> _webviewWindows = {};
   
-  // 标记是否已初始化处理器
+  // 标记是否已初始化方法处理器
   bool _handlerInitialized = false;
 
   /// 创建 WebView 窗口
@@ -57,19 +56,22 @@ class MultiWindowManager {
     double width = 1200,
     double height = 800,
   }) async {
-    // 检查是否已存在相同 URL 的窗口，如果存在则激活它
+    // 检查是否已存在相同 URL 的窗口
     final existingWindowId = _webviewWindows[url];
     if (existingWindowId != null) {
-      try {
-        final controller = WindowController.fromWindowId(existingWindowId);
-        // 尝试激活窗口（如果窗口已关闭会抛出异常）
-        await controller.show();
-        return;
-      } catch (e) {
-        // 窗口可能已关闭，从 map 中移除
-        debugPrint('窗口已关闭，重新创建: $e');
-        _webviewWindows.remove(url);
+      // 检查窗口是否仍然存在
+      final exists = await _isWindowExists(existingWindowId);
+      if (exists) {
+        try {
+          final controller = WindowController.fromWindowId(existingWindowId);
+          await controller.show();
+          return;
+        } catch (e) {
+          debugPrint('激活窗口失败: $e');
+        }
       }
+      // 窗口已关闭，从缓存中移除
+      _webviewWindows.remove(url);
     }
 
     // 创建新窗口
@@ -86,17 +88,12 @@ class MultiWindowManager {
     // 设置窗口标题
     await window.setTitle(title);
     
-    // 设置窗口大小和位置（居中）
-    final screenWidth = 1920.0; // 默认屏幕宽度
-    final screenHeight = 1080.0; // 默认屏幕高度
-    final x = (screenWidth - width) / 2;
-    final y = (screenHeight - height) / 2;
-    
+    // 设置窗口大小
     await window.setFrame(
-      Rect.fromLTWH(x, y, width, height),
+      Rect.fromLTWH(0, 0, width, height),
     );
     
-    // 居中显示
+    // 使用系统提供的居中方法，自动适配屏幕尺寸
     await window.center();
     
     // 显示窗口
@@ -106,32 +103,19 @@ class MultiWindowManager {
     _webviewWindows[url] = window.windowId;
   }
 
-  /// 初始化全局方法处理器
-  void _initMethodHandler() {
-    if (_handlerInitialized) return;
-    _handlerInitialized = true;
-    
-    // 使用 DesktopMultiWindow.setMethodHandler 监听所有窗口事件
-    DesktopMultiWindow.setMethodHandler((call, fromWindowId) async {
-      if (call.method == 'onClose') {
-        // 从参数中获取关闭的窗口 ID，如果没有则使用 fromWindowId
-        final closedWindowId = call.arguments as int? ?? fromWindowId;
-        
-        // 查找对应的 URL 并移除
-        String? urlToRemove;
-        for (final entry in _webviewWindows.entries) {
-          if (entry.value == closedWindowId) {
-            urlToRemove = entry.key;
-            break;
-          }
-        }
-        if (urlToRemove != null) {
-          _webviewWindows.remove(urlToRemove);
-          debugPrint('窗口已关闭，移除缓存: $urlToRemove (窗口ID: $closedWindowId)');
-        }
-      }
-      return null;
-    });
+  /// 检查窗口是否存在
+  /// 通过尝试获取窗口标题来检测，不会触发窗口显示
+  Future<bool> _isWindowExists(int windowId) async {
+    try {
+      final controller = WindowController.fromWindowId(windowId);
+      // 尝试设置相同的标题来检测窗口是否存在
+      // 如果窗口已关闭会抛出异常，不会实际改变标题
+      await controller.setTitle(await controller.getTitle() ?? '');
+      return true;
+    } catch (e) {
+      debugPrint('窗口 $windowId 不存在或已关闭: $e');
+      return false;
+    }
   }
 
   /// 关闭所有 WebView 窗口
@@ -145,6 +129,47 @@ class MultiWindowManager {
       }
     }
     _webviewWindows.clear();
+  }
+
+  /// 从缓存中移除指定 URL 的窗口
+  /// 当子窗口关闭时调用
+  void removeWindowFromCache(String url) {
+    if (_webviewWindows.containsKey(url)) {
+      _webviewWindows.remove(url);
+      debugPrint('从缓存中移除窗口: $url');
+    }
+  }
+
+  /// 根据窗口 ID 从缓存中移除
+  void removeWindowById(int windowId) {
+    String? urlToRemove;
+    for (final entry in _webviewWindows.entries) {
+      if (entry.value == windowId) {
+        urlToRemove = entry.key;
+        break;
+      }
+    }
+    if (urlToRemove != null) {
+      _webviewWindows.remove(urlToRemove);
+      debugPrint('从缓存中移除窗口 ID: $windowId, URL: $urlToRemove');
+    }
+  }
+
+  /// 初始化方法处理器，监听子窗口的消息
+  void _initMethodHandler() {
+    if (_handlerInitialized) return;
+    _handlerInitialized = true;
+
+    DesktopMultiWindow.setMethodHandler((call, fromWindowId) async {
+      if (call.method == 'windowClosed') {
+        // 子窗口关闭时，从缓存中移除
+        final url = call.arguments as String?;
+        if (url != null) {
+          removeWindowFromCache(url);
+        }
+      }
+      return null;
+    });
   }
 }
 
