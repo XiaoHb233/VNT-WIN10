@@ -121,10 +121,18 @@ class _IntranetPageState extends State<IntranetPage> {
 
   /// 初始化并加载WebView
   Future<void> _openWebView(String title, String url, String username, String password) async {
-    // 如果已经有WebView，先释放
+    // 如果已经有WebView，复用并只切换URL，保留缓存
     if (_webViewController != null) {
-      await _webViewController!.dispose();
-      _webViewController = null;
+      setState(() {
+        _showWebView = true;
+        _isWebViewLoading = true;
+        _webViewTitle = title;
+        _currentUrl = url;
+        _errorMessage = '';
+      });
+      // 复用现有WebView，只加载新URL，保留Cookie和缓存
+      await _webViewController!.loadUrl(url);
+      return;
     }
 
     setState(() {
@@ -153,6 +161,10 @@ class _IntranetPageState extends State<IntranetPage> {
           setState(() {
             _isWebViewLoading = state == LoadingState.loading;
           });
+          // 页面加载完成后，检测是否是登录页面并自动填充
+          if (state == LoadingState.navigationCompleted) {
+            _checkAndAutoFill(controller);
+          }
         }
       });
 
@@ -184,7 +196,54 @@ class _IntranetPageState extends State<IntranetPage> {
 
 
 
-  /// 关闭WebView，返回入口选择页面
+  /// 检测当前页面是否是登录页面，如果是则自动填充
+  Future<void> _checkAndAutoFill(WebviewController controller) async {
+    // 延迟确保页面元素已加载
+    await Future.delayed(const Duration(milliseconds: 800));
+    try {
+      // 根据当前端获取对应的用户名密码和元素ID
+      final usernameId = _isUserEnd ? 'login-username' : 'username';
+      final passwordId = _isUserEnd ? 'login-password' : 'password';
+      final username = _isUserEnd ? _userUsername : _adminUsername;
+      final password = _isUserEnd ? _userPassword : _adminPassword;
+      
+      if (username.isEmpty || password.isEmpty) return;
+      
+      // 检测页面是否存在登录表单元素
+      final result = await controller.executeScript('''
+        (function() {
+          var usernameInput = document.getElementById('$usernameId');
+          var passwordInput = document.getElementById('$passwordId');
+          return (usernameInput !== null && passwordInput !== null) ? 'login_page' : 'not_login';
+        })();
+      ''');
+      
+      if (result == 'login_page') {
+        debugPrint('检测到登录页面，开始自动填充');
+        // 执行自动填充
+        await controller.executeScript('''
+          (function() {
+            var usernameInput = document.getElementById('$usernameId');
+            var passwordInput = document.getElementById('$passwordId');
+            if (usernameInput) {
+              usernameInput.value = '$username';
+              usernameInput.dispatchEvent(new Event('input', { bubbles: true }));
+              usernameInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            if (passwordInput) {
+              passwordInput.value = '$password';
+              passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+              passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          })();
+        ''');
+      }
+    } catch (e) {
+      debugPrint('自动填充检测失败: \$e');
+    }
+  }
+
+  /// 关闭WebView，返回入口选择页面（隐藏但不销毁，保留缓存）
   void _closeWebView() {
     setState(() {
       _showWebView = false;
@@ -192,8 +251,8 @@ class _IntranetPageState extends State<IntranetPage> {
       _currentUrl = '';
       _errorMessage = '';
     });
-    _webViewController?.dispose();
-    _webViewController = null;
+    // 重要：不调用 dispose()，保持 WebView 实例存活
+    // 这样 Cookie 和登录状态会被保留，下次打开时仍然有效
   }
 
   /// 刷新当前页面
