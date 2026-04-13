@@ -41,22 +41,22 @@ jobs:
             ~/.rustup/toolchains
             ~/.rustup/update-hashes
             ~/.cargo/bin
-          key: ${{ runner.os }}-rust-toolchain-1.77
+          key: ${{ runner.os }}-rust-toolchain-1.85
 
-      - name: 固定 Rust 版本 1.77
+      - name: 固定 Rust 版本 1.85
         shell: bash
         run: |
           echo "========================================="
-          echo "🔧 开始配置 Rust 1.77.0"
+          echo "🔧 开始配置 Rust 1.85.0"
           echo "========================================="
           
           rustup set auto-self-update disable
 
-          # 安装 1.77.0（Cargokit 会使用这个版本）
-          rustup toolchain install 1.77.0
-          rustup default 1.77.0
+          # 安装 1.85.0（支持 edition2024）
+          rustup toolchain install 1.85.0
+          rustup default 1.85.0
 
-          rustup component add rust-src --toolchain 1.77.0
+          rustup component add rust-src --toolchain 1.85.0
 
           echo ""
           echo "✅ Rust 版本配置完成："
