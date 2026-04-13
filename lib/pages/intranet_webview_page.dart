@@ -42,13 +42,6 @@ class _IntranetWebViewPageState extends State<IntranetWebViewPage> {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       );
 
-      // 启用开发者工具（调试用，发布时可关闭）
-      try {
-        await _controller.openDevTools();
-      } catch (e) {
-        debugPrint('[WebView] 打开开发者工具失败: $e');
-      }
-
       // 监听加载状态
       _controller.loadingState.listen((state) {
         if (mounted) {
@@ -100,9 +93,18 @@ class _IntranetWebViewPageState extends State<IntranetWebViewPage> {
 
   Future<void> _goBack() async {
     try {
+      // 尝试返回上一页
       await _controller.goBack();
     } catch (e) {
-      // 无法返回时关闭页面
+      // WebView 无法返回时，关闭当前页面
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    }
+  }
+
+  Future<void> _closePage() async {
+    if (mounted) {
       Navigator.pop(context);
     }
   }
@@ -123,21 +125,30 @@ class _IntranetWebViewPageState extends State<IntranetWebViewPage> {
       appBar: AppBar(
         backgroundColor: isDark ? AppTheme.darkCardBackground : AppTheme.lightCardBackground,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back,
-            color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
-          ),
-          onPressed: _goBack,
-        ),
-        title: Text(
-          widget.title,
-          style: TextStyle(
-            color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
-            fontSize: context.fontMedium,
-          ),
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 返回按钮（返回上一页或关闭）
+            IconButton(
+              icon: Icon(
+                Icons.arrow_back,
+                color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+              ),
+              onPressed: _goBack,
+              tooltip: '返回',
+            ),
+          ],
         ),
         actions: [
+          // 关闭按钮
+          IconButton(
+            icon: Icon(
+              Icons.close,
+              color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+            ),
+            onPressed: _closePage,
+            tooltip: '关闭',
+          ),
           IconButton(
             icon: Icon(
               Icons.refresh,
@@ -170,6 +181,13 @@ class _IntranetWebViewPageState extends State<IntranetWebViewPage> {
             tooltip: '查看地址',
           ),
         ],
+        title: Text(
+          widget.title,
+          style: TextStyle(
+            color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+            fontSize: context.fontMedium,
+          ),
+        ),
       ),
       body: Stack(
         children: [
