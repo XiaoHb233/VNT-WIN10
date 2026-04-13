@@ -57,6 +57,7 @@ dependencies:
   share_plus: ^7.2.2
   flex_color_picker: ^3.3.0
   webview_windows: ^0.4.0
+  desktop_multi_window: ^0.2.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
