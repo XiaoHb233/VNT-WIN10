@@ -13,6 +13,10 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_NET_RETRY: 10
+  RUST_BACKTRACE: short
+  CARGO_BUILD_JOBS: 4
+  CARGO_INCREMENTAL: 1
 permissions:
   contents: write
 
@@ -28,6 +32,16 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.24.5
+          cache: true
+
+      - name: 设置 Rust 缓存
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.rustup/toolchains
+            ~/.rustup/update-hashes
+            ~/.cargo/bin
+          key: ${{ runner.os }}-rust-toolchain-1.77
 
       - name: 固定 Rust 版本 1.77
         shell: bash
@@ -53,13 +67,33 @@ jobs:
           rustup toolchain list
           echo "========================================="
 
-      - name: 缓存 Flutter / Pub / Gradle（Windows 7 引擎版）
+      - name: 缓存 Rust 依赖和编译产物
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: 缓存 Flutter / Pub
         uses: actions/cache@v4
         with:
           path: |
             ~/.pub-cache
-            ~/.gradle/caches
-            ~/.gradle/wrapper
+            .dart_tool
+            build/
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: 缓存 Windows 7 引擎
+        uses: actions/cache@v4
+        with:
+          path: |
             ${{ runner.tool_cache }}/flutter
           key: >
             windows-flutter-win7-engine-
@@ -103,6 +137,7 @@ jobs:
       - name: 构建 Windows vntAPP
         shell: pwsh
         run: |
+          flutter config --no-analytics
           flutter pub get
           flutter build windows --release -v
 
