@@ -26,15 +26,10 @@ class WindowArgs {
 class MultiWindowManager {
   static final MultiWindowManager _instance = MultiWindowManager._internal();
   factory MultiWindowManager() => _instance;
-  MultiWindowManager._internal() {
-    _initMethodHandler();
-  }
+  MultiWindowManager._internal();
 
   // 存储已创建的 WebView 窗口 ID，用于复用
   final Map<String, int> _webviewWindows = {};
-  
-  // 标记是否已初始化方法处理器
-  bool _handlerInitialized = false;
 
   /// 创建 WebView 窗口
   /// 
@@ -130,46 +125,6 @@ class MultiWindowManager {
     _webviewWindows.clear();
   }
 
-  /// 从缓存中移除指定 URL 的窗口
-  /// 当子窗口关闭时调用
-  void removeWindowFromCache(String url) {
-    if (_webviewWindows.containsKey(url)) {
-      _webviewWindows.remove(url);
-      debugPrint('从缓存中移除窗口: $url');
-    }
-  }
-
-  /// 根据窗口 ID 从缓存中移除
-  void removeWindowById(int windowId) {
-    String? urlToRemove;
-    for (final entry in _webviewWindows.entries) {
-      if (entry.value == windowId) {
-        urlToRemove = entry.key;
-        break;
-      }
-    }
-    if (urlToRemove != null) {
-      _webviewWindows.remove(urlToRemove);
-      debugPrint('从缓存中移除窗口 ID: $windowId, URL: $urlToRemove');
-    }
-  }
-
-  /// 初始化方法处理器，监听子窗口的消息
-  void _initMethodHandler() {
-    if (_handlerInitialized) return;
-    _handlerInitialized = true;
-
-    DesktopMultiWindow.setMethodHandler((call, fromWindowId) async {
-      if (call.method == 'windowClosed') {
-        // 子窗口关闭时，从缓存中移除
-        final url = call.arguments as String?;
-        if (url != null) {
-          removeWindowFromCache(url);
-        }
-      }
-      return null;
-    });
-  }
 }
 
 /// 子窗口入口点

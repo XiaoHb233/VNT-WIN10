@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:webview_windows/webview_windows.dart';
 import 'package:vnt_app/theme/app_theme.dart';
 
@@ -48,22 +47,7 @@ class _WebViewWindowPageState extends State<WebViewWindowPage> {
     // 注意：WebviewController.dispose() 是异步的，但 Flutter 的 dispose 必须是同步的
     // 这里直接调用，让插件内部处理异步清理
     _webViewController?.dispose();
-    
-    // 通知主窗口从缓存中移除当前窗口
-    _notifyWindowClosed();
-    
     super.dispose();
-  }
-  
-  /// 通知主窗口当前窗口已关闭
-  void _notifyWindowClosed() {
-    try {
-      // 使用 invokeMethod 通知主窗口（窗口 ID 为 0）
-      DesktopMultiWindow.invokeMethod(0, 'windowClosed', _url);
-    } catch (e) {
-      // 忽略通知失败的情况
-      debugPrint('通知主窗口窗口关闭失败: $e');
-    }
   }
 
   /// 设置窗口标题
@@ -316,14 +300,7 @@ class _WebViewWindowPageState extends State<WebViewWindowPage> {
                 textAlign: TextAlign.center,
               ),
             ),
-          const SizedBox(width: 8),
-          // 关闭按钮
-          _buildToolbarButton(
-            icon: Icons.close,
-            onPressed: _closeWindow,
-            tooltip: '关闭',
-            isDark: isDark,
-          ),
+          // 注意：窗口使用系统标题栏的关闭按钮，这里不添加自定义关闭按钮
         ],
       ),
     );
