@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
@@ -27,10 +26,16 @@ class WindowArgs {
 class MultiWindowManager {
   static final MultiWindowManager _instance = MultiWindowManager._internal();
   factory MultiWindowManager() => _instance;
-  MultiWindowManager._internal();
+  MultiWindowManager._internal() {
+    // 初始化全局方法处理器
+    _initMethodHandler();
+  }
 
   // 存储已创建的 WebView 窗口 ID，用于复用
   final Map<String, int> _webviewWindows = {};
+  
+  // 标记是否已初始化处理器
+  bool _handlerInitialized = false;
 
   /// 创建 WebView 窗口
   /// 
@@ -53,15 +58,16 @@ class MultiWindowManager {
     double height = 800,
   }) async {
     // 检查是否已存在相同 URL 的窗口，如果存在则激活它
-    final windowId = _webviewWindows[url];
-    if (windowId != null) {
+    final existingWindowId = _webviewWindows[url];
+    if (existingWindowId != null) {
       try {
-        final controller = WindowController.fromWindowId(windowId);
-        // 使用 invokeMethod 调用 focus
-        await DesktopMultiWindow.invokeMethod(windowId, 'focus');
+        final controller = WindowController.fromWindowId(existingWindowId);
+        // 尝试激活窗口（如果窗口已关闭会抛出异常）
+        await controller.show();
         return;
       } catch (e) {
         // 窗口可能已关闭，从 map 中移除
+        debugPrint('窗口已关闭，重新创建: $e');
         _webviewWindows.remove(url);
       }
     }
@@ -98,19 +104,26 @@ class MultiWindowManager {
 
     // 保存窗口 ID
     _webviewWindows[url] = window.windowId;
-
-    // 监听窗口事件
-    _setupWindowListener(url, window.windowId);
   }
 
-  /// 设置窗口监听器
-  void _setupWindowListener(String url, int windowId) {
-    // 使用 DesktopMultiWindow.setMethodHandler 监听窗口事件
+  /// 初始化全局方法处理器
+  void _initMethodHandler() {
+    if (_handlerInitialized) return;
+    _handlerInitialized = true;
+    
+    // 使用 DesktopMultiWindow.setMethodHandler 监听所有窗口事件
     DesktopMultiWindow.setMethodHandler((call, fromWindowId) async {
-      if (fromWindowId == windowId) {
-        if (call.method == 'onClose') {
-          _webviewWindows.remove(url);
+      // 查找对应的 URL 并移除
+      String? urlToRemove;
+      for (final entry in _webviewWindows.entries) {
+        if (entry.value == fromWindowId) {
+          urlToRemove = entry.key;
+          break;
         }
+      }
+      if (urlToRemove != null && call.method == 'onClose') {
+        _webviewWindows.remove(urlToRemove);
+        debugPrint('窗口已关闭，移除缓存: $urlToRemove');
       }
       return null;
     });

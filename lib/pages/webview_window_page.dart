@@ -188,7 +188,8 @@ class _WebViewWindowPageState extends State<WebViewWindowPage> {
       // webview_windows 插件没有 canGoBack 方法，直接尝试 goBack
       await _webViewController!.goBack();
     } catch (e) {
-      // 如果无法后退（已经在第一页），关闭窗口
+      // goBack 失败（已经在第一页），关闭窗口
+      debugPrint('无法后退，关闭窗口: $e');
       _closeWindow();
     }
   }
