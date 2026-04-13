@@ -1,0 +1,8 @@
+# Cargokit 配置文件
+# 使用 Rust 1.88 版本（与 Android 项目一致）
+
+cargo:
+  release:
+    toolchain: "1.88.0"
+  debug:
+    toolchain: "1.88.0"

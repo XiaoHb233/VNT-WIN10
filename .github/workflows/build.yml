@@ -1,0 +1,177 @@
+name: VntApp Windows Build
+
+on:
+  push:
+    branches:
+      - main
+      - flutter
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_NET_RETRY: 10
+  RUST_BACKTRACE: short
+  CARGO_BUILD_JOBS: 4
+  CARGO_INCREMENTAL: 1
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: vntApp-windows
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: 设置Flutter环境
+        uses: subosito/flutter-action@v2.12.0
+        with:
+          channel: stable
+          flutter-version: 3.24.5
+          cache: true
+
+      - name: 设置 Rust 缓存
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.rustup/toolchains
+            ~/.rustup/update-hashes
+            ~/.cargo/bin
+          key: ${{ runner.os }}-rust-toolchain-1.88
+
+      - name: 固定 Rust 版本 1.88
+        shell: bash
+        run: |
+          echo "========================================="
+          echo "🔧 开始配置 Rust 1.88.0"
+          echo "========================================="
+          
+          rustup set auto-self-update disable
+
+          # 安装 1.88.0（与 Android 项目一致）
+          rustup toolchain install 1.88.0
+          rustup default 1.88.0
+
+          rustup component add rust-src --toolchain 1.88.0
+
+          echo ""
+          echo "✅ Rust 版本配置完成："
+          rustc -V
+          cargo -V
+          echo ""
+          echo "📋 已安装的工具链："
+          rustup toolchain list
+          echo "========================================="
+
+      - name: 缓存 Rust 依赖和编译产物
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: 缓存 Flutter / Pub
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+            build/
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: 缓存 Windows 7 引擎
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.tool_cache }}/flutter
+          key: >
+            windows-flutter-win7-engine-
+            3.24.5-
+            ${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            windows-flutter-win7-engine-
+
+      - name: 判断是否已应用 Windows 7 引擎
+        id: win7_engine
+        shell: pwsh
+        run: |
+          $flag = "C:/hostedtoolcache/windows/flutter/stable-3.24.5-x64/.win7_engine_applied"
+          if (Test-Path $flag) {
+            echo "applied=true" >> $Env:GITHUB_OUTPUT
+          } else {
+            echo "applied=false" >> $Env:GITHUB_OUTPUT
+          }
+
+      - name: 替换 Flutter 引擎为支持 Windows 7 的版本
+        if: steps.win7_engine.outputs.applied != 'true'
+        shell: pwsh
+        run: |
+          flutter doctor -v
+          flutter precache --windows
+          
+          Expand-Archive -Path ".github/patches/windows-x64-release.zip" -DestinationPath "windows-x64-release"
+          
+          Copy-Item -Path "windows-x64-release/*" -Destination "C:/hostedtoolcache/windows/flutter/stable-3.24.5-x64/bin/cache/artifacts/engine/windows-x64-release/" -Recurse -Force
+          
+          New-Item -ItemType File -Path "C:/hostedtoolcache/windows/flutter/stable-3.24.5-x64/.win7_engine_applied" -Force
+            
+      - name: 打补丁以启用 Dropdown Menu 过滤支持
+        if: steps.win7_engine.outputs.applied != 'true'
+        shell: bash
+        run: |
+          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
+          cd $(dirname $(dirname $(which flutter)))
+          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff || true
+
+      - name: 构建 Windows vntAPP
+        shell: pwsh
+        run: |
+          flutter config --no-analytics
+          flutter pub get
+          flutter build windows --release -v
+
+          echo "构建完成，开始列出生成的文件"
+          Get-ChildItem build\windows\x64\runner\Release
+
+          Set-Location build\windows\x64\runner\Release
+
+          Compress-Archive -Path * -DestinationPath $Env:GITHUB_WORKSPACE/vntApp-windows.zip -Force
+
+      - name: Archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vntApp-windows
+          path: vntApp-windows.zip
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+      - name: List
+        run: find ./artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: VNT App Windows Build ${{ github.run_number }}
+          draft: false
+          prerelease: false
+          files: ./artifacts/vntApp-windows/vntApp-windows.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
